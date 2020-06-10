@@ -1,0 +1,147 @@
+---
+title: "Capstone"
+author: "Rosemarie Portelli"
+date: "27/05/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+#Install and load required packages
+```{r}
+#install.packages("tm")
+#install.packages("text2vec")
+#install.packages("Snowballc")
+#install.packages("wordcloud")
+#install.packages("RColorBrewer")
+library(tm)
+library(text2vec)
+library(SnowballC)
+library(stopwords)
+library(wordcloud)
+```
+
+
+## Reading the Transcripts
+```{r}
+criticReview <- read.csv(file = 'C:\\Users\\rosep\\Documents\\CKME136\\critic.csv', header = T, sep = ',')
+
+criticReview
+```
+# Histogram of the rating from 70-100 where 100 is the best rating
+```{r}
+hist(criticReview$grade, main="Critic Rating", xlab="Grade")
+```
+
+
+# Reading the transcripts
+```{r}
+criticDoc <- 0
+for (i in c(2:100)) {criticDoc[i] <- as.character(criticReview$text[i])}
+Cdoc.list <- as.list(criticDoc[2:100])
+N.docs <- length(Cdoc.list)
+names(Cdoc.list) <- paste0("CDoc", c(1:N.docs))
+Query <- as.character(criticReview$text[1])
+```
+
+#Preparing the Corpus
+```{r}
+my.Cdocs <- VectorSource(c(Cdoc.list, Query))
+my.Cdocs$Names <- c(names(Cdoc.list), "Query")
+my.Ccorpus <- Corpus(my.Cdocs)
+my.Ccorpus
+```
+
+#Cleaning and Preprocessing the text
+```{r}
+getTransformations()
+
+#Removing punctuation is necessary as it helps to increase retrieval performance
+my.Ccorpus <- tm_map(my.Ccorpus, removePunctuation)
+#Stemming reduces the different forms of the word formed by inflections and derivation to a common stem
+my.Ccorpus <- tm_map(my.Ccorpus, stemDocument)
+#Easy to compare the words in the documents to the query when all the words have been transformed to lower case
+my.Ccorpus <- tm_map(my.Ccorpus, content_transformer(tolower))
+#stopwords are commonly used words that seldom contribute to the meaning of the sentence. They can interfere with the precision and recall
+#my.corpus <- stopwords(my.corpus="en")
+my.Ccorpus <- tm_map(my.Ccorpus, removeWords, stopwords("english"))
+#Remove extra white spaces
+my.Ccorpus <- tm_map(my.Ccorpus, stripWhitespace)
+content(my.Ccorpus[[1]])
+```
+
+##Creating a uni-gram Term Document Matrix
+```{r}
+term.doc.matrix <- TermDocumentMatrix(my.Ccorpus)
+inspect(term.doc.matrix[1:10,1:10])
+```
+
+## Converting the generated TDM into a matrix and displaying the first 6 rows and the dimensions of the matrix
+```{r}
+term.doc.matrix <- as.matrix(term.doc.matrix)
+head(term.doc.matrix)
+dim(term.doc.matrix)
+```
+
+#Sorting the matrix and checking frequency
+```{r}
+sortTDMatrix <- sort(rowSums(term.doc.matrix),decreasing=TRUE)
+dMatrix <- data.frame(word = names(sortTDMatrix),freq=sortTDMatrix)
+head(dMatrix, 10)
+```
+
+#Creating the word cloud
+```{r}
+set.seed(1234)
+wordcloud(words = dMatrix$word, freq = dMatrix$freq, min.freq = 1,
+          max.words=200, random.order=FALSE, rot.per=0.35, 
+          colors=brewer.pal(8, "Dark2"))
+barplot(dMatrix[1:10,]$freq, las=2, names.arg=dMatrix[1:10,]$word, main="Commonly occurring words")
+```
+
+
+#Declaring weights (TF-IDF)
+```{r}
+get.tf.idf.weights <- function(tf.vec) {
+  # Computes the tfidf weights from the term frequency vector
+  n.docs <- length(tf.vec)
+  doc.frequency <- length(tf.vec[tf.vec > 0])
+  weights <- rep(0, length(tf.vec))
+  relative.frequency <- tf.vec[tf.vec > 0] / sum(tf.vec[tf.vec > 0])
+  weights[tf.vec > 0] <-  relative.frequency * log(n.docs/doc.frequency)
+  return(weights)
+}
+```
+
+
+
+###Computing Cosine Similarity and Displaying a heatmap
+```{r}
+#tfidf.matrix is the transposed version for term.doc.matrix
+tfidf.matrix <- t(apply(term.doc.matrix, 1,
+                        FUN = function(row) {get.tf.idf.weights(row)})) #apply the functions against the rows
+
+colnames(tfidf.matrix) <- my.Cdocs$Names
+
+head(tfidf.matrix)
+dim(tfidf.matrix)
+
+
+similarity.matrix <- sim2(t(tfidf.matrix), method = 'cosine')
+heatmap(similarity.matrix)
+```
+
+
+##Showing the Results
+```{r}
+sort(similarity.matrix["Query", ], decreasing = TRUE)[1:10]
+```
+
