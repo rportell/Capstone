@@ -17,16 +17,66 @@ When you click the **Knit** button a document will be generated that includes bo
 
 #Install and load required packages
 ```{r}
-#install.packages("tm")
-#install.packages("text2vec")
-#install.packages("Snowballc")
-#install.packages("wordcloud")
-#install.packages("RColorBrewer")
+# install.packages("tm")
+# install.packages("text2vec")
+# install.packages("Snowballc")
+# install.packages("wordcloud")
+# install.packages("RColorBrewer")
+# install.packages("qdapTools")
+# install.packages("tidyverse")
+# install.packages("tidytext")
+# install.packages("ggplot2")
+# install.packages("ggthemes")
+# install.packages(qdap)
+# install.packages(dplyr)
+# install.packages(tm)
+# install.packages(plotrix)
+# install.packages(dendextend)
+# install.packages(ggthemes)
+# install.packages(RWeka)
+# install.packages(reshape2)
+# install.packages(quanteda)
+# install.packages("irlba")
+# install.packages("elo71")
+# install.packages("caret")
+# install.packages("randomForest")
+# install.packages("rpart")
+# install.packages("rpart.plot")
+# install.packages("RColorBrewer")
+# install.packages("biclust")
+# install.packages("igraph")
+# install.packages("fpc")
+# install.packages("Rcampdf")
 library(tm)
 library(text2vec)
 library(SnowballC)
 library(stopwords)
 library(wordcloud)
+library(qdapTools)
+library(tidyverse)
+library(ggplot2)
+library(tidytext)
+library(dplyr)
+library(tm)
+library(plotrix)
+library(dendextend)
+library(ggthemes)
+#library(RWeka)
+library(reshape2)
+library(quanteda)
+library(irlba)
+#library(elo71)
+library(caret)
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(biclust)
+library(igraph)
+library(fpc)
+#library(Rcampdf)
+library(stringr)
+library(stringi)
 ```
 
 
@@ -35,10 +85,7 @@ library(wordcloud)
 userReview <- read.csv(file = 'C:\\Users\\rosep\\Documents\\CKME136\\user_reviews.csv', header = T, sep = ',', stringsAsFactors = FALSE)
 userReviewHigh <- subset(userReview, userReview$grade > 4)
 userReviewLow <- subset(userReview, userReview$grade < 5)
-#for (i in c(2:3000)){
-#if (userReview$grade[i] < 5) {userReviewLow <- userReview[i]}
-#else {userReviewHigh <- userReview[i]}
-#  }
+
 userReview
 ```
 # Histogram of the rating from 70-100 where 100 is the best rating
@@ -76,6 +123,7 @@ getTransformations()
 
 #Change special characters to space
 toSpace <- content_transformer(function (x , pattern ) gsub(pattern, " ", x))
+my.Ucorpus <- tm_map(my.Ucorpus, content_transformer(function(x) gsub(x, pattern = "@.*", replacement = "")))
 #Removing punctuation is necessary as it helps to increase retrieval performance
 my.Ucorpus <- tm_map(my.Ucorpus, removePunctuation)
 #stopwords are commonly used words that seldom contribute to the meaning of the sentence. They can interfere with the precision and recall
@@ -90,7 +138,8 @@ my.Ucorpus <- tm_map(my.Ucorpus, content_transformer(tolower))
 my.Ucorpus <- tm_map(my.Ucorpus, stripWhitespace)
 content(my.Ucorpus[[1]])
 
-UcorpusHigh <- tm_map(UcorpusHigh, toSpace, "â€")
+UcorpusHigh <- tm_map(UcorpusHigh, content_transformer(function(x) gsub(x, pattern = "@.*", replacement = "")))
+#UcorpusHigh <- tm_map(UcorpusHigh, toSpace, c("â€", "€_™_s"))
 UcorpusHigh <- tm_map(UcorpusHigh, removePunctuation)
 UcorpusHigh <- tm_map(UcorpusHigh, removeWords, stopwords("english"))
 UcorpusHigh <- tm_map(UcorpusHigh, removeWords, c("nintendo", "animal", "crossing", "new", "horizons", "horizon", "switch"))
@@ -98,7 +147,8 @@ UcorpusHigh <- tm_map(UcorpusHigh, stemDocument)
 UcorpusHigh <- tm_map(UcorpusHigh, content_transformer(tolower))
 UcorpusHigh <- tm_map(UcorpusHigh, stripWhitespace)
 
-UcorpusLow <- tm_map(UcorpusLow, toSpace, "â€")
+UcorpusLow <- tm_map(UcorpusLow, content_transformer(function(x) gsub(x, pattern = "@.*", replacement = "")))
+#UcorpusLow <- tm_map(UcorpusLow, toSpace, "â€")
 UcorpusLow <- tm_map(UcorpusLow, removePunctuation)
 UcorpusLow <- tm_map(UcorpusLow, removeWords, stopwords("english"))
 UcorpusLow <- tm_map(UcorpusLow, removeWords, c("nintendo", "animal", "crossing", "new", "horizons", "horizon", "switch"))
@@ -121,9 +171,9 @@ ULow.TDM <- TermDocumentMatrix(UcorpusLow)
 
 ## Converting the generated TDM into a matrix and displaying the first 6 rows and the dimensions of the matrix
 ```{r}
-Uterm.doc.matrix <- as.matrix(Uterm.doc.matrix)
-head(Uterm.doc.matrix)
-dim(Uterm.doc.matrix)
+User.TDM <- as.matrix(Uterm.doc.matrix)
+head(User.TDM)
+dim(User.TDM)
 
 UHigh.TDM <- as.matrix(UHigh.TDM)
 ULow.TDM <- as.matrix(ULow.TDM)
@@ -131,7 +181,7 @@ ULow.TDM <- as.matrix(ULow.TDM)
 
 #Sorting the matrix and checking frequency
 ```{r}
-UsortTDMatrix <- sort(rowSums(Uterm.doc.matrix),decreasing=TRUE)
+UsortTDMatrix <- sort(rowSums(User.TDM),decreasing=TRUE)
 UdMatrix <- data.frame(word = names(UsortTDMatrix),freq=UsortTDMatrix)
 head(UdMatrix, 10)
 
@@ -194,3 +244,145 @@ heatmap(similarity.matrix)
 sort(similarity.matrix["Query", ], decreasing = TRUE)[1:10]
 ```
 
+##Creating a dendrogram
+```{r}
+Uterm.doc.matrix2 <- removeSparseTerms(Uterm.doc.matrix, sparse = 0.9)
+hc <- hclust(d = dist(Uterm.doc.matrix2, method = "euclidean"), method = "complete")
+# Plot a dendrogram
+plot(hc)
+```
+
+## Create associations
+```{r}
+associations <- findAssocs(Uterm.doc.matrix, "island", 0.05)
+# Create associations_df
+associations_df <- list_vect2df(associations)[, 2:3]
+# Plot the associations_df values 
+ggplot(associations_df, aes(y = associations_df[, 1])) + 
+  geom_point(aes(x = associations_df[, 2]), 
+             data = associations_df, size = 3) + 
+  ggtitle("Word Associations to 'island'") + 
+  theme_gdocs()
+```
+
+##Creating bi-grams and tri-grams
+```{r}
+rmwords <- c("nintendo", "switch", "new", "horizons", "horizon", "animal", "crossing")
+
+##create bi-grams
+review_bigram <- tokens(userReview$text) %>%
+  tokens_remove("[^[:alnum:]]", valuetype = "regex", padding = TRUE) %>%
+  tokens_remove("[^a-zA-Z0-9]", valuetype = "regex", padding = TRUE) %>%
+  tokens_select(rmwords, selection = "remove", padding = TRUE) %>%
+  tokens_remove(stopwords("english"), padding  = TRUE) %>%
+  tokens_ngrams(n = 2) %>%
+  dfm()
+topfeatures(review_bigram)
+
+##Create tri-grams
+review_trigram <- tokens(userReview$text) %>%
+  tokens_remove("[^[:alnum:]]", valuetype = "regex", padding = TRUE) %>%
+  tokens_remove("[^a-zA-Z0-9]", valuetype = "regex", padding = TRUE) %>%
+  tokens_select(rmwords, selection = "remove", padding = TRUE) %>%
+  tokens_remove(stopwords("english"), padding  = TRUE) %>%
+  tokens_ngrams(n = 3) %>%
+  dfm()
+topfeatures(review_trigram)
+```
+
+
+##Tokenisation
+```{r}
+## Tokenize descriptions
+reviewtokens <- tokens(userReview$text,what="word",
+                    remove_numbers=TRUE,remove_punct=TRUE, remove_symbols=TRUE, split_hyphens=TRUE)
+# Lowercase the tokens
+reviewtokens <- tokens_tolower(reviewtokens)
+# remove stop words and unnecessary words
+rmwords <- c("nintendo", "switch", "new", "horizons", "horizon", "animal", "crossing")
+reviewtokens <- tokens_select(reviewtokens, stopwords(), selection = "remove")
+reviewtokens <- tokens_remove(reviewtokens,rmwords)
+# Stemming tokens
+reviewtokens <- tokens_wordstem(reviewtokens,language = "english")
+reviewtokens <- tokens_ngrams(reviewtokens,n=1:2)
+
+# Creating a bag of words
+reviewtokensdfm <- dfm(reviewtokens,tolower = FALSE)
+# Remove sparsity
+reviewSparse <- convert(reviewtokensdfm, "tm")
+tm::removeSparseTerms(reviewSparse, 0.7)
+# Create the dfm
+dfm_trim(reviewtokensdfm, min_docfreq = 0.3)
+x <- dfm_trim(reviewtokensdfm, sparsity = 0.98)
+```
+
+##Classification Model
+#```{r}
+## Setup a dataframe with features
+df <- convert(x,to="data.frame")
+##Add the Y variable Recommend.IND
+reviewtokensdf <- cbind(review$INDICATOR,df)
+head(reviewtokensdf)
+## Cleanup names
+names(reviewtokensdf)[names(reviewtokensdf) == "review.INDICATOR"] <- "recommend"
+names(reviewtokensdf)< - make.names(names(reviewtokensdf))
+head(reviewtokensdf)
+## Remove the original review.text column
+reviewtokensdf <- reviewtokensdf[,-c(2)]
+head(reviewtokensdf)
+reviewtokensdf$recommend <- factor(reviewtokensdf$recommend)
+#```
+
+## Build the CART model
+#```{r}
+tree <- rpart(formula = recommend ~ ., data = reviewtokensdf, method ="class",control = rpart.control(minsplit = 200,  minbucket = 30, cp = 0.0001))
+printcp(tree)
+plotcp(tree)
+##Prune down the tree
+bestcp=tree$cptable[which.min(tree$cptable[,"xerror"]),"CP"]
+bestcp
+ptree=prune(tree,cp=bestcp)
+rpart.plot(ptree,cex = 0.6)
+prp(ptree, faclen = 0, cex = 0.5, extra = 2)
+```
+
+## Random Forest
+#```{r}
+library(randomForest)
+reviewRF=randomForest(recommend~., data=reviewtokensdf)
+varImpPlot(reviewRF, cex=.7)
+```
+
+## Lasso logistic regression
+#```{r}
+#load required library
+library(glmnet)
+#convert training data to matrix format
+x <- model.matrix(recommend~.,reviewtokensdf)
+#convert class to numerical variable
+y <- as.numeric(reviewtokensdf$recommend)
+#perform grid search to find optimal value of lambda
+cv.out <- cv.glmnet(x,y,alpha=1,family="binomial",type.measure = "mse" )
+#plot result
+plot(cv.out)
+#min value of lambda
+lambda_min <- cv.out$lambda.min
+#best value of lambda
+lambda_1se <- cv.out$lambda.1se
+lambda_1se
+#regression coefficients
+coef=coef(cv.out,s=lambda_1se)
+lassocoef=as.matrix(coef(cv.out,s=lambda_1se))
+write.csv(lassocoef, "lasso_coef.csv")
+# Find the best lambda using cross-validation
+set.seed(123) 
+cv.lasso <- cv.glmnet(x, y, alpha = 1, family = "binomial")
+# Fit the final model on the dataframe
+review_logreg <- glmnet(x, y, alpha = 1, family = "binomial",
+                        lambda = cv.lasso$lambda.min)
+# Save the regression coef to a csv file
+logregcoef=as.matrix(coef(review_logreg))
+odds_ratio=as.matrix(exp(coef(review_logreg)))
+write.csv(logregcoef, "logreg_coef.csv")
+write.csv(odds_ratio, "odds_ratio.csv")
+```
