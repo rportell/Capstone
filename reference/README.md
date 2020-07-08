@@ -21,3 +21,5 @@ https://monkeylearn.com/text-analysis/
 Uber Reviews Text Analysis
 https://towardsdatascience.com/uber-reviews-text-analysis-11613675046d
 
+Text mining used tidytext
+https://www.tidytextmining.com/tidytext.html
