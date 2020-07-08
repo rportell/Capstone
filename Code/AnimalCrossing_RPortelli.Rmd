@@ -1,0 +1,418 @@
+---
+title: "Capstone"
+author: "Rosemarie Portelli"
+date: "27/05/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+#Install and load required packages
+```{r}
+# install.packages("tm")
+# install.packages("text2vec")
+# install.packages("Snowballc")
+# install.packages("wordcloud")
+# install.packages("RColorBrewer")
+# install.packages("qdapTools")
+# install.packages("tidyverse")
+# install.packages("tidytext")
+# install.packages("ggplot2")
+# install.packages("ggthemes")
+# install.packages(qdap)
+# install.packages(dplyr)
+# install.packages(tm)
+# install.packages(plotrix)
+# install.packages(dendextend)
+# install.packages(ggthemes)
+# install.packages(RWeka)
+# install.packages(reshape2)
+# install.packages(quanteda)
+# install.packages("irlba")
+# install.packages("elo71")
+# install.packages("caret")
+# install.packages("randomForest")
+# install.packages("rpart")
+# install.packages("rpart.plot")
+# install.packages("RColorBrewer")
+# install.packages("biclust")
+# install.packages("igraph")
+# install.packages("fpc")
+# install.packages("Rcampdf")
+library(tm)
+library(text2vec)
+library(SnowballC)
+library(stopwords)
+library(wordcloud)
+library(qdapTools)
+library(tidyverse)
+library(ggplot2)
+library(tidytext)
+library(dplyr)
+library(tm)
+library(plotrix)
+library(dendextend)
+library(ggthemes)
+#library(RWeka)
+library(reshape2)
+library(quanteda)
+library(irlba)
+#library(elo71)
+library(caret)
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(biclust)
+library(igraph)
+library(fpc)
+#library(Rcampdf)
+library(stringr)
+library(stringi)
+```
+
+
+## Reading the Transcripts
+```{r}
+criticReview <- read.csv(file = 'C:\\Users\\rosep\\Documents\\CKME136\\critic.csv', header = T, sep = ',', stringsAsFactors = FALSE)
+
+#split into high review (higher than 84 grading)
+#and low review (below 85 grading)
+criticReviewHigh <- subset(criticReview, criticReview$grade > 84)
+criticReviewLow <- subset(criticReview, criticReview$grade < 85)
+
+criticReview
+```
+# Histogram of the rating from 70-100 where 100 is the best rating
+```{r}
+hist(criticReview$grade, main="Critic Rating", xlab="Grade")
+hist(criticReviewHigh$grade, main="High Critic Rating", xlab="Grade")
+hist(criticReviewLow$grade, main="Low Critic Rating", xlab="Grade")
+```
+
+
+# Reading the transcripts and preparing the corpora
+```{r}
+criticDoc <- 0
+for (i in c(2:107)) {criticDoc[i] <- as.character(criticReview$text[i])}
+Cdoc.list <- as.list(criticDoc[2:107])
+N.docs <- length(Cdoc.list)
+names(Cdoc.list) <- paste0("CDoc", c(1:N.docs))
+Query <- as.character(criticReview$text[1])
+
+my.Cdocs <- VectorSource(c(Cdoc.list, Query))
+my.Cdocs$Names <- c(names(Cdoc.list), "Query")
+my.Ccorpus <- Corpus(my.Cdocs)
+
+#for the high reviews
+criticDoc <- 0
+for (i in c(2:107)) {criticDoc[i] <- as.character(criticReviewHigh$text[i])}
+Cdoc.list <- as.list(criticDoc[2:107])
+N.docs <- length(Cdoc.list)
+names(Cdoc.list) <- paste0("CDoc", c(1:N.docs))
+Query2 <- as.character(criticReviewHigh$text[1])
+
+my.Cdocs <- VectorSource(c(Cdoc.list, Query2))
+my.Cdocs$Names <- c(names(Cdoc.list), "Query")
+CcorpusHigh <- Corpus(my.Cdocs)
+CcorpusHigh
+
+#for the low reviews
+criticDoc <- 0
+for (i in c(2:107)) {criticDoc[i] <- as.character(criticReviewLow$text[i])}
+Cdoc.list <- as.list(criticDoc[2:107])
+N.docs <- length(Cdoc.list)
+names(Cdoc.list) <- paste0("CDoc", c(1:N.docs))
+Query3 <- as.character(criticReviewLow$text[1])
+
+my.Cdocs <- VectorSource(c(Cdoc.list, Query3))
+my.Cdocs$Names <- c(names(Cdoc.list), "Query")
+CcorpusLow <- Corpus(my.Cdocs)
+CcorpusLow
+```
+
+
+#Cleaning and Preprocessing the text
+```{r}
+getTransformations()
+
+#Change special characters to space
+toSpace <- content_transformer(function (x , pattern ) gsub(pattern, " ", x))
+my.Ccorpus <- tm_map(my.Ccorpus, content_transformer(function(x) gsub(x, pattern = "@.*", replacement = "")))
+my.Ccorpus <- tm_map(my.Ccorpus, toSpace, c("â€", "€_™_s"))
+#Removing punctuation is necessary as it helps to increase retrieval performance
+my.Ccorpus <- tm_map(my.Ccorpus, removePunctuation)
+#stopwords are commonly used words that seldom contribute to the meaning of the sentence. They can interfere with the precision and recall
+#Easy to compare the words in the documents to the query when all the words have been transformed to lower case
+my.Ccorpus <- tm_map(my.Ccorpus, content_transformer(tolower))
+#my.corpus <- stopwords(my.corpus="en")
+my.Ccorpus <- tm_map(my.Ccorpus, removeWords, stopwords("english"))
+my.Ccorpus <- tm_map(my.Ccorpus, removeWords, c("nintendo", "animal", "crossing", "new", "horizons", "horizon", "switch"))
+#Stemming reduces the different forms of the word formed by inflections and derivation to a common stem
+my.Ccorpus <- tm_map(my.Ccorpus, stemDocument)
+#Remove extra white spaces
+my.Ccorpus <- tm_map(my.Ccorpus, stripWhitespace)
+content(my.Ccorpus[[1]])
+
+CcorpusHigh <- tm_map(CcorpusHigh, content_transformer(function(x) gsub(x, pattern = "@.*", replacement = "")))
+CcorpusHigh <- tm_map(CcorpusHigh, toSpace, c("â€", "™"))
+CcorpusHigh <- tm_map(CcorpusHigh, removePunctuation)
+CcorpusHigh <- tm_map(CcorpusHigh, content_transformer(tolower))
+CcorpusHigh <- tm_map(CcorpusHigh, removeWords, stopwords("english"))
+CcorpusHigh <- tm_map(CcorpusHigh, removeWords, c("nintendo", "animal", "crossing", "new", "horizons", "horizon", "switch"))
+CcorpusHigh <- tm_map(CcorpusHigh, stemDocument)
+CcorpusHigh <- tm_map(CcorpusHigh, stripWhitespace)
+
+CcorpusLow <- tm_map(CcorpusLow, content_transformer(function(x) gsub(x, pattern = "@.*", replacement = "")))
+CcorpusLow <- tm_map(CcorpusLow, toSpace, c("â€", "™"))
+CcorpusLow <- tm_map(CcorpusLow, removePunctuation)
+CcorpusLow <- tm_map(CcorpusLow, content_transformer(tolower))
+CcorpusLow <- tm_map(CcorpusLow, removeWords, stopwords("english"))
+CcorpusLow <- tm_map(CcorpusLow, removeWords, c("nintendo", "animal", "crossing", "new", "horizons", "horizon", "switch"))
+CcorpusLow <- tm_map(CcorpusLow, stemDocument)
+CcorpusLow <- tm_map(CcorpusLow, stripWhitespace)
+```
+
+##Creating a uni-gram Term Document Matrix
+```{r}
+Cterm.doc.matrix <- TermDocumentMatrix(my.Ccorpus)
+Cdoc.term.matrix <- DocumentTermMatrix(my.Ccorpus)
+inspect(Cterm.doc.matrix[1:10,1:10])
+inspect(Cdoc.term.matrix[1:10,1:10])
+
+CHigh.TDM <- TermDocumentMatrix(CcorpusHigh)
+CLow.TDM <- TermDocumentMatrix(CcorpusLow)
+```
+
+## Converting the generated TDM into a matrix and displaying the first 6 rows and the dimensions of the matrix
+```{r}
+Critic.TDM <- as.matrix(Cterm.doc.matrix)
+Critic.DTM <- as.matrix(Cdoc.term.matrix)
+CHigh.TDM <- as.matrix(CHigh.TDM)
+CLow.TDM <- as.matrix(CLow.TDM)
+#head(Cterm.doc.matrix)
+dim(Cterm.doc.matrix)
+
+```
+
+#Sorting the matrix and checking frequency
+```{r}
+CsortTDMatrix <- sort(rowSums(Critic.TDM),decreasing=TRUE)
+CdMatrix <- data.frame(word = names(CsortTDMatrix),freq=CsortTDMatrix)
+head(CdMatrix, 10)
+
+CsortHTDMatrix <- sort(rowSums(CHigh.TDM),decreasing=TRUE)
+CHTDMatrix <- data.frame(word = names(CsortHTDMatrix),freq=CsortHTDMatrix)
+
+CsortLTDMatrix <- sort(rowSums(CLow.TDM),decreasing=TRUE)
+CLTDMatrix <- data.frame(word = names(CsortLTDMatrix),freq=CsortLTDMatrix)
+```
+
+#Creating the word cloud
+```{r}
+set.seed(1234)
+wordcloud(words = CdMatrix$word, freq = CdMatrix$freq, min.freq = 1,
+          max.words=200, random.order=FALSE, rot.per=0.35, 
+          colors=brewer.pal(8, "Dark2"))
+barplot(CdMatrix[1:10,]$freq, las=2, names.arg=CdMatrix[1:10,]$word, main="Commonly occurring words")
+```
+
+#Comparing the frequencies 
+```{r}
+barplot(CHTDMatrix[1:10,]$freq, las=2, names.arg=CHTDMatrix[1:10,]$word, main="Commonly occurring words in High Grade")
+barplot(CLTDMatrix[1:10,]$freq, las=2, names.arg=CLTDMatrix[1:10,]$word, main="Commonly occurring words in Low Grade")
+```
+
+
+#Declaring weights (TF-IDF)
+```{r}
+get.tf.idf.weights <- function(tf.vec) {
+  # Computes the tfidf weights from the term frequency vector
+  n.docs <- length(tf.vec)
+  doc.frequency <- length(tf.vec[tf.vec > 0])
+  weights <- rep(0, length(tf.vec))
+  relative.frequency <- tf.vec[tf.vec > 0] / sum(tf.vec[tf.vec > 0])
+  weights[tf.vec > 0] <-  relative.frequency * log(n.docs/doc.frequency)
+  return(weights)
+}
+```
+
+
+
+###Computing Cosine Similarity and Displaying a heatmap
+```{r}
+#tfidf.matrix is the transposed version for term.doc.matrix
+tfidf.matrix <- t(apply(Cterm.doc.matrix, 1,
+                        FUN = function(row) {get.tf.idf.weights(row)})) #apply the functions against the rows
+
+colnames(tfidf.matrix) <- my.Cdocs$Names
+
+head(tfidf.matrix)
+dim(tfidf.matrix)
+
+
+similarity.matrix <- sim2(t(tfidf.matrix), method = 'cosine')
+heatmap(similarity.matrix)
+```
+
+
+##Showing the Results
+```{r}
+sort(similarity.matrix["Query", ], decreasing = TRUE)[1:10]
+```
+
+
+##Creating a dendrogram
+```{r}
+Cterm.doc.matrix2 <- removeSparseTerms(Cterm.doc.matrix, sparse = 0.9)
+hc <- hclust(d = dist(Cterm.doc.matrix2, method = "euclidean"), method = "complete")
+# Plot a dendrogram
+plot(hc)
+```
+
+## Create associations
+```{r}
+associations <- findAssocs(Cterm.doc.matrix, "island", 0.05)
+# Create associations_df
+associations_df <- list_vect2df(associations)[, 2:3]
+# Plot the associations_df values 
+ggplot(associations_df, aes(y = associations_df[, 1])) + 
+  geom_point(aes(x = associations_df[, 2]), 
+             data = associations_df, size = 3) + 
+  ggtitle("Word Associations to 'island'") + 
+  theme_gdocs()
+```
+
+##Creating bi-grams and tri-grams
+```{r}
+rmwords <- c("nintendo", "switch", "new", "horizons", "horizon", "animal", "crossing")
+
+##create bi-grams
+review_bigram <- tokens(criticReview$text) %>%
+  tokens_remove("[^[:alnum:]]", valuetype = "regex", padding = TRUE) %>%
+  tokens_remove("[^a-zA-Z0-9]", valuetype = "regex", padding = TRUE) %>%
+  tokens_select(rmwords, selection = "remove", padding = TRUE) %>%
+  tokens_remove(stopwords("english"), padding  = TRUE) %>%
+  tokens_ngrams(n = 2) %>%
+  dfm()
+topfeatures(review_bigram)
+
+##Create tri-grams
+review_trigram <- tokens(criticReview$text) %>%
+  tokens_remove("[^[:alnum:]]", valuetype = "regex", padding = TRUE) %>%
+  tokens_remove("[^a-zA-Z0-9]", valuetype = "regex", padding = TRUE) %>%
+  tokens_select(rmwords, selection = "remove", padding = TRUE) %>%
+  tokens_remove(stopwords("english"), padding  = TRUE) %>%
+  tokens_ngrams(n = 3) %>%
+  dfm()
+topfeatures(review_trigram)
+```
+
+
+
+##Tokenisation
+```{r}
+## Tokenize descriptions
+reviewtokens <- tokens(criticReview$text,what="word",
+                    remove_numbers=TRUE,remove_punct=TRUE, remove_symbols=TRUE, split_hyphens=TRUE)
+# Lowercase the tokens
+reviewtokens <- tokens_tolower(reviewtokens)
+# remove stop words and unnecessary words
+rmwords <- c("nintendo", "switch", "new", "horizons", "horizon", "animal", "crossing")
+reviewtokens <- tokens_select(reviewtokens, stopwords(), selection = "remove")
+reviewtokens <- tokens_remove(reviewtokens,rmwords)
+# Stemming tokens
+reviewtokens <- tokens_wordstem(reviewtokens,language = "english")
+reviewtokens <- tokens_ngrams(reviewtokens,n=1:2)
+
+# Creating a bag of words
+reviewtokensdfm <- dfm(reviewtokens,tolower = FALSE)
+# Remove sparsity
+reviewSparse <- convert(reviewtokensdfm, "tm")
+tm::removeSparseTerms(reviewSparse, 0.7)
+# Create the dfm
+dfm_trim(reviewtokensdfm, min_docfreq = 0.3)
+x <- dfm_trim(reviewtokensdfm, sparsity = 0.98)
+```
+
+##Classification Model
+#```{r}
+## Setup a dataframe with features
+df <- convert(x,to="data.frame")
+##Add the Y variable Recommend.IND
+#reviewtokensdf <- cbind(review$INDICATOR,df)
+head(reviewtokensdf)
+## Cleanup names
+names(reviewtokensdf)[names(reviewtokensdf) == "review.INDICATOR"] <- "recommend"
+names(reviewtokensdf)< - make.names(names(reviewtokensdf))
+head(reviewtokensdf)
+## Remove the original review.text column
+reviewtokensdf <- reviewtokensdf[,-c(2)]
+head(reviewtokensdf)
+reviewtokensdf$recommend <- factor(reviewtokensdf$recommend)
+```
+
+## Build the CART model
+#```{r}
+tree <- rpart(formula = recommend ~ ., data = reviewtokensdf, method ="class",control = rpart.control(minsplit = 200,  minbucket = 30, cp = 0.0001))
+printcp(tree)
+plotcp(tree)
+##Prune down the tree
+bestcp=tree$cptable[which.min(tree$cptable[,"xerror"]),"CP"]
+bestcp
+ptree=prune(tree,cp=bestcp)
+rpart.plot(ptree,cex = 0.6)
+prp(ptree, faclen = 0, cex = 0.5, extra = 2)
+```
+
+
+## Random Forest
+#```{r}
+library(randomForest)
+reviewRF=randomForest(recommend~., data=reviewtokensdf)
+varImpPlot(reviewRF, cex=.7)
+```
+
+## Lasso logistic regression
+#```{r}
+#load required library
+library(glmnet)
+#convert training data to matrix format
+x <- model.matrix(recommend~.,reviewtokensdf)
+#convert class to numerical variable
+y <- as.numeric(reviewtokensdf$recommend)
+#perform grid search to find optimal value of lambda
+cv.out <- cv.glmnet(x,y,alpha=1,family="binomial",type.measure = "mse" )
+#plot result
+plot(cv.out)
+#min value of lambda
+lambda_min <- cv.out$lambda.min
+#best value of lambda
+lambda_1se <- cv.out$lambda.1se
+lambda_1se
+#regression coefficients
+coef=coef(cv.out,s=lambda_1se)
+lassocoef=as.matrix(coef(cv.out,s=lambda_1se))
+write.csv(lassocoef, "lasso_coef.csv")
+# Find the best lambda using cross-validation
+set.seed(123) 
+cv.lasso <- cv.glmnet(x, y, alpha = 1, family = "binomial")
+# Fit the final model on the dataframe
+review_logreg <- glmnet(x, y, alpha = 1, family = "binomial",
+                        lambda = cv.lasso$lambda.min)
+# Save the regression coef to a csv file
+logregcoef=as.matrix(coef(review_logreg))
+odds_ratio=as.matrix(exp(coef(review_logreg)))
+write.csv(logregcoef, "logreg_coef.csv")
+write.csv(odds_ratio, "odds_ratio.csv")
+```
