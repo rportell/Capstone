@@ -27,17 +27,14 @@ When you click the **Knit** button a document will be generated that includes bo
 # install.packages("tidytext")
 # install.packages("ggplot2")
 # install.packages("ggthemes")
-# install.packages(qdap)
-# install.packages(dplyr)
-# install.packages(tm)
-# install.packages(plotrix)
-# install.packages(dendextend)
-# install.packages(ggthemes)
-# install.packages(RWeka)
-# install.packages(reshape2)
-# install.packages(quanteda)
+# install.packages("qdap")
+# install.packages("dplyr")
+# install.packages("plotrix")
+# install.packages("dendextend")
+# install.packages("reshape2")
+# install.packages("quanteda")
 # install.packages("irlba")
-# install.packages("elo71")
+# install.packages("e1071")
 # install.packages("caret")
 # install.packages("randomForest")
 # install.packages("rpart")
@@ -46,7 +43,6 @@ When you click the **Knit** button a document will be generated that includes bo
 # install.packages("biclust")
 # install.packages("igraph")
 # install.packages("fpc")
-# install.packages("Rcampdf")
 library(tm)
 library(text2vec)
 library(SnowballC)
@@ -61,11 +57,10 @@ library(tm)
 library(plotrix)
 library(dendextend)
 library(ggthemes)
-#library(RWeka)
 library(reshape2)
 library(quanteda)
 library(irlba)
-#library(elo71)
+library(e1071)
 library(caret)
 library(randomForest)
 library(rpart)
@@ -74,30 +69,41 @@ library(RColorBrewer)
 library(biclust)
 library(igraph)
 library(fpc)
-#library(Rcampdf)
 library(stringr)
 library(stringi)
+library(gplots)
 ```
 
 
 ## Reading the Transcripts
 ```{r}
 userReview <- read.csv(file = 'C:\\Users\\rosep\\Documents\\CKME136\\user_reviews.csv', header = T, sep = ',', stringsAsFactors = FALSE)
-userReviewHigh <- subset(userReview, userReview$grade > 4)
-userReviewLow <- subset(userReview, userReview$grade < 5)
 
-userReview
+userReviewHigh <- subset(userReview, userReview$indicator == 1)
+userReviewLow <- subset(userReview, userReview$indicator == 0)
+
+head(userReview)
 ```
-# Histogram of the rating from 70-100 where 100 is the best rating
+# Histogram of the rating
 ```{r}
 hist(userReview$grade, main="User Rating", xlab="Grade")
-hist(userReviewHigh$grade, main="High Critic Rating", xlab="High Grade")
-hist(userReviewLow$grade, main="Low Critic Rating", xlab="Low Grade")
+hist(userReviewHigh$grade, main="High User Rating", xlab="High Grade")
+hist(userReviewLow$grade, main="Low User Rating", xlab="Low Grade")
+```
+# Boxplots of the rating
+```{r}
+boxplot(userReview$grade, main="User Rating", xlab="Grade")
+boxplot(userReviewHigh$grade, main="High User Rating", xlab="High Grade")
+boxplot(userReviewLow$grade, main="Low User Rating", xlab="Low Grade")
 ```
 
 
 # Reading the transcripts
 ```{r}
+userReview <- within(userReview, grade[grade < 5] <- 0)
+userReview <- within(userReview, grade[grade > 4] <- 1)
+userReview <- subset(userReview, select = -c(user_name, date, indicator))
+
 userDoc <- 0
 for (i in c(2:3000)) {userDoc[i] <- as.character(userReview$text[i])}
 Udoc.list <- as.list(userDoc[2:3000])
@@ -126,14 +132,14 @@ toSpace <- content_transformer(function (x , pattern ) gsub(pattern, " ", x))
 my.Ucorpus <- tm_map(my.Ucorpus, content_transformer(function(x) gsub(x, pattern = "@.*", replacement = "")))
 #Removing punctuation is necessary as it helps to increase retrieval performance
 my.Ucorpus <- tm_map(my.Ucorpus, removePunctuation)
+#Easy to compare the words in the documents to the query when all the words have been transformed to lower case
+my.Ucorpus <- tm_map(my.Ucorpus, content_transformer(tolower))
 #stopwords are commonly used words that seldom contribute to the meaning of the sentence. They can interfere with the precision and recall
 #my.Ucorpus <- stopwords(my.Ucorpus="en")
 my.Ucorpus <- tm_map(my.Ucorpus, removeWords, stopwords("english"))
-my.Ucorpus <- tm_map(my.Ucorpus, removeWords, c("nintendo", "animal", "crossing", "new", "horizons", "switch"))
+my.Ucorpus <- tm_map(my.Ucorpus, removeWords, c("nintendo", "animal", "crossing", "new", "horizons", "switch", "game", "TMS"))
 #Stemming reduces the different forms of the word formed by inflections and derivation to a common stem
 my.Ucorpus <- tm_map(my.Ucorpus, stemDocument)
-#Easy to compare the words in the documents to the query when all the words have been transformed to lower case
-my.Ucorpus <- tm_map(my.Ucorpus, content_transformer(tolower))
 #Remove extra white spaces
 my.Ucorpus <- tm_map(my.Ucorpus, stripWhitespace)
 content(my.Ucorpus[[1]])
@@ -141,19 +147,19 @@ content(my.Ucorpus[[1]])
 UcorpusHigh <- tm_map(UcorpusHigh, content_transformer(function(x) gsub(x, pattern = "@.*", replacement = "")))
 #UcorpusHigh <- tm_map(UcorpusHigh, toSpace, c("â€", "€_™_s"))
 UcorpusHigh <- tm_map(UcorpusHigh, removePunctuation)
-UcorpusHigh <- tm_map(UcorpusHigh, removeWords, stopwords("english"))
-UcorpusHigh <- tm_map(UcorpusHigh, removeWords, c("nintendo", "animal", "crossing", "new", "horizons", "horizon", "switch"))
-UcorpusHigh <- tm_map(UcorpusHigh, stemDocument)
 UcorpusHigh <- tm_map(UcorpusHigh, content_transformer(tolower))
+UcorpusHigh <- tm_map(UcorpusHigh, removeWords, stopwords("english"))
+UcorpusHigh <- tm_map(UcorpusHigh, removeWords, c("nintendo", "animal", "crossing", "new", "horizons", "horizon", "switch", "game"))
+UcorpusHigh <- tm_map(UcorpusHigh, stemDocument)
 UcorpusHigh <- tm_map(UcorpusHigh, stripWhitespace)
 
 UcorpusLow <- tm_map(UcorpusLow, content_transformer(function(x) gsub(x, pattern = "@.*", replacement = "")))
 #UcorpusLow <- tm_map(UcorpusLow, toSpace, "â€")
 UcorpusLow <- tm_map(UcorpusLow, removePunctuation)
-UcorpusLow <- tm_map(UcorpusLow, removeWords, stopwords("english"))
-UcorpusLow <- tm_map(UcorpusLow, removeWords, c("nintendo", "animal", "crossing", "new", "horizons", "horizon", "switch"))
-UcorpusLow <- tm_map(UcorpusLow, stemDocument)
 UcorpusLow <- tm_map(UcorpusLow, content_transformer(tolower))
+UcorpusLow <- tm_map(UcorpusLow, removeWords, stopwords("english"))
+UcorpusLow <- tm_map(UcorpusLow, removeWords, c("nintendo", "animal", "crossing", "new", "horizons", "horizon", "switch", "game"))
+UcorpusLow <- tm_map(UcorpusLow, stemDocument)
 UcorpusLow <- tm_map(UcorpusLow, stripWhitespace)
 ```
 
@@ -169,11 +175,11 @@ UHigh.TDM <- TermDocumentMatrix(UcorpusHigh)
 ULow.TDM <- TermDocumentMatrix(UcorpusLow)
 ```
 
-## Converting the generated TDM into a matrix and displaying the first 6 rows and the dimensions of the matrix
+## Converting the generated TDM into a matrix
 ```{r}
 User.TDM <- as.matrix(Uterm.doc.matrix)
-head(User.TDM)
-dim(User.TDM)
+#head(User.TDM)
+#dim(User.TDM)
 
 UHigh.TDM <- as.matrix(UHigh.TDM)
 ULow.TDM <- as.matrix(ULow.TDM)
@@ -222,27 +228,30 @@ get.tf.idf.weights <- function(tf.vec) {
 
 
 
-###Computing Cosine Similarity and Displaying a heatmap
+###Utfidf.matrix is the transposed version of term.doc.matrix
 ```{r}
-#tfidf.matrix is the transposed version for term.doc.matrix
-tfidf.matrix <- t(apply(Uterm.doc.matrix, 1,
+Utfidf.matrix <- t(apply(Uterm.doc.matrix, 1,
                         FUN = function(row) {get.tf.idf.weights(row)})) #apply the functions against the rows
 
-colnames(tfidf.matrix) <- my.Udocs$Names
+colnames(Utfidf.matrix) <- my.Udocs$Names
 
-head(tfidf.matrix)
-dim(tfidf.matrix)
+Utfidf.t <- t(Utfidf.matrix)
 
+Utfidf.t.df <- as.dfm(Utfidf.t)
 
-similarity.matrix <- sim2(t(tfidf.matrix), method = 'cosine')
-heatmap(similarity.matrix)
+#head(Utfidf.matrix)
+#dim(Utfidf.matrix)
 ```
 
-
-##Showing the Results
+#computing the cosine similarity matrix
 ```{r}
-sort(similarity.matrix["Query", ], decreasing = TRUE)[1:10]
+similarity.matrix <- sim2(Utfidf.matrix, method = 'cosine')
+heatmap(similarity.matrix[1:20, 1:20], scale = "column")
+
 ```
+
+
+
 
 ##Creating a dendrogram
 ```{r}
@@ -254,7 +263,7 @@ plot(hc)
 
 ## Create associations
 ```{r}
-associations <- findAssocs(Uterm.doc.matrix, "island", 0.05)
+associations <- findAssocs(Uterm.doc.matrix2[1:20,], "island", 0.05)
 # Create associations_df
 associations_df <- list_vect2df(associations)[, 2:3]
 # Plot the associations_df values 
@@ -304,10 +313,10 @@ reviewtokens <- tokens_select(reviewtokens, stopwords(), selection = "remove")
 reviewtokens <- tokens_remove(reviewtokens,rmwords)
 # Stemming tokens
 reviewtokens <- tokens_wordstem(reviewtokens,language = "english")
-reviewtokens <- tokens_ngrams(reviewtokens,n=1:2)
+reviewtokens <- tokens_ngrams(reviewtokens,n=1:3)
 
 # Creating a bag of words
-reviewtokensdfm <- dfm(reviewtokens,tolower = FALSE)
+reviewtokensdfm=dfm(reviewtokens,tolower = FALSE)
 # Remove sparsity
 reviewSparse <- convert(reviewtokensdfm, "tm")
 tm::removeSparseTerms(reviewSparse, 0.7)
@@ -317,72 +326,85 @@ x <- dfm_trim(reviewtokensdfm, sparsity = 0.98)
 ```
 
 ##Classification Model
-#```{r}
+```{r}
 ## Setup a dataframe with features
 df <- convert(x,to="data.frame")
 ##Add the Y variable Recommend.IND
-reviewtokensdf <- cbind(review$INDICATOR,df)
+reviewtokensdf <- cbind(userReview$grade,df)
 head(reviewtokensdf)
 ## Cleanup names
-names(reviewtokensdf)[names(reviewtokensdf) == "review.INDICATOR"] <- "recommend"
-names(reviewtokensdf)< - make.names(names(reviewtokensdf))
+names(reviewtokensdf)[names(reviewtokensdf) == "userReview$grade"] <- "recommend"
+names(reviewtokensdf) <- make.names(names(reviewtokensdf))
 head(reviewtokensdf)
 ## Remove the original review.text column
 reviewtokensdf <- reviewtokensdf[,-c(2)]
 head(reviewtokensdf)
 reviewtokensdf$recommend <- factor(reviewtokensdf$recommend)
-#```
+```
+
 
 ## Build the CART model
-#```{r}
-tree <- rpart(formula = recommend ~ ., data = reviewtokensdf, method ="class",control = rpart.control(minsplit = 200,  minbucket = 30, cp = 0.0001))
+```{r}
+library("rpart", "rpart.plot")
+tree <- rpart(formula = recommend ~ ., data = reviewtokensdf, method="class",
+           control = rpart.control(minsplit = 200,  minbucket = 30, cp = 0.0001))
 printcp(tree)
 plotcp(tree)
+
+
 ##Prune down the tree
-bestcp=tree$cptable[which.min(tree$cptable[,"xerror"]),"CP"]
+bestcp <- tree$cptable[which.min(tree$cptable[,"xerror"]),"CP"]
 bestcp
-ptree=prune(tree,cp=bestcp)
+ptree <- prune(tree,cp=bestcp)
 rpart.plot(ptree,cex = 0.6)
 prp(ptree, faclen = 0, cex = 0.5, extra = 2)
 ```
 
 ## Random Forest
-#```{r}
+```{r}
 library(randomForest)
-reviewRF=randomForest(recommend~., data=reviewtokensdf)
+reviewRF <- randomForest(recommend ~ ., data = reviewtokensdf)
 varImpPlot(reviewRF, cex=.7)
 ```
 
 ## Lasso logistic regression
-#```{r}
+```{r}
 #load required library
 library(glmnet)
-#convert training data to matrix format
+#dumy code categorical predictor variables as matrix
 x <- model.matrix(recommend~.,reviewtokensdf)
 #convert class to numerical variable
 y <- as.numeric(reviewtokensdf$recommend)
 #perform grid search to find optimal value of lambda
-cv.out <- cv.glmnet(x,y,alpha=1,family="binomial",type.measure = "mse" )
+cv.llg <- cv.glmnet(x,y,alpha=1,family="binomial")
 #plot result
-plot(cv.out)
-#min value of lambda
-lambda_min <- cv.out$lambda.min
+plot(cv.llg)
+```
+
+```{r}
+#the exact value of lambda
+lambda_min <- cv.llg$lambda.min
+lambda_min
 #best value of lambda
-lambda_1se <- cv.out$lambda.1se
+lambda_1se <- cv.llg$lambda.1se
 lambda_1se
+
 #regression coefficients
-coef=coef(cv.out,s=lambda_1se)
-lassocoef=as.matrix(coef(cv.out,s=lambda_1se))
+coef <- coef(cv.llg,s=lambda_1se)
+lassocoef <- as.matrix(coef(cv.llg,s=lambda_1se))
 write.csv(lassocoef, "lasso_coef.csv")
+
 # Find the best lambda using cross-validation
 set.seed(123) 
-cv.lasso <- cv.glmnet(x, y, alpha = 1, family = "binomial")
+cv.llg <- cv.glmnet(x, y, alpha = 1, family = "binomial")
+
 # Fit the final model on the dataframe
 review_logreg <- glmnet(x, y, alpha = 1, family = "binomial",
-                        lambda = cv.lasso$lambda.min)
+                        lambda = cv.llg$lambda.min)
+
 # Save the regression coef to a csv file
-logregcoef=as.matrix(coef(review_logreg))
-odds_ratio=as.matrix(exp(coef(review_logreg)))
+logregcoef <- as.matrix(coef(review_logreg))
+odds_ratio <- as.matrix(exp(coef(review_logreg)))
 write.csv(logregcoef, "logreg_coef.csv")
 write.csv(odds_ratio, "odds_ratio.csv")
 ```
